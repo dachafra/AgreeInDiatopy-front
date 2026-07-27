@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Analyze subject–verb agreement in English sentences and corpora."
+    />
+    <title>AgreeInDiatopy</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="AgreeInDiatopy home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>AgreeInDiatopy</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a class="active" href="#analyze">Home</a>
+        <a href="#examples">Examples</a>
+        <a href="#documentation">Documentation</a>
+        <a href="#help">Help</a>
+      </nav>
+      <span class="language" aria-label="Interface language">EN</span>
+    </header>
+
+    <main>
+      <section id="analyze" class="workspace">
+        <div class="main-column">
+          <section class="card input-card">
+            <div class="section-heading">
+              <span class="step">1</span>
+              <div>
+                <h1>Enter sentence or corpus</h1>
+                <p>Analyze text directly or upload a UTF-8 .txt corpus.</p>
+              </div>
+            </div>
+
+            <div class="mode-tabs" role="tablist" aria-label="Input mode">
+              <button
+                class="mode-tab active"
+                data-mode="text"
+                role="tab"
+                aria-controls="text-panel"
+                aria-selected="true"
+              >
+                Type a sentence
+              </button>
+              <button
+                class="mode-tab"
+                data-mode="file"
+                role="tab"
+                aria-controls="file-panel"
+                aria-selected="false"
+              >
+                Upload a corpus (.txt)
+              </button>
+            </div>
+
+            <div id="text-panel" class="input-panel" role="tabpanel">
+              <label class="sr-only" for="sentence-input">English text</label>
+              <textarea
+                id="sentence-input"
+                rows="5"
+                placeholder="e.g. My dear cat eats vegetables every day."
+              ></textarea>
+              <div class="examples-inline" id="examples">
+                <span>Try an example:</span>
+                <button data-example="My dear cat eats vegetables every day.">
+                  Simple agreement
+                </button>
+                <button data-example="The old trees in the backyard provide shade in summer.">
+                  Complex subject
+                </button>
+                <button data-example="There is a book on the table.">
+                  Existential there
+                </button>
+              </div>
+            </div>
+
+            <div id="file-panel" class="input-panel hidden" role="tabpanel">
+              <input id="file-input" type="file" accept=".txt,text/plain" hidden />
+              <button id="drop-zone" class="drop-zone" type="button">
+                <span class="upload-icon" aria-hidden="true">↑</span>
+                <span>
+                  <strong>Drop a .txt file here</strong>
+                  <small>or click to browse your files · maximum 5 MB</small>
+                </span>
+              </button>
+              <div id="file-summary" class="file-summary hidden">
+                <span class="file-badge">TXT</span>
+                <span>
+                  <strong id="file-name"></strong>
+                  <small id="file-meta"></small>
+                </span>
+                <button id="remove-file" class="icon-button" aria-label="Remove file">
+                  ×
+                </button>
+              </div>
+              <div id="file-preview" class="file-preview hidden"></div>
+            </div>
+
+            <div class="form-footer">
+              <p id="status-message" role="status">
+                Choose one input mode and start the analysis.
+              </p>
+              <div>
+                <button id="clear-button" class="button secondary">Clear</button>
+                <button id="analyze-button" class="button primary">
+                  Analyze text
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section id="results" class="card results-card hidden">
+            <div class="section-heading result-heading">
+              <span class="step">3</span>
+              <div>
+                <h2>Results</h2>
+                <p id="result-summary"></p>
+              </div>
+              <button id="download-button" class="button secondary">
+                Download CSV
+              </button>
+            </div>
+
+            <div id="result-empty" class="empty-state hidden">
+              No processable subject–verb constructions were found.
+            </div>
+            <div id="result-content">
+              <div class="result-toolbar">
+                <label for="result-select">Construction</label>
+                <select id="result-select"></select>
+                <span id="agreement-badge" class="agreement-badge"></span>
+              </div>
+              <p id="selected-sentence" class="selected-sentence"></p>
+              <h3>Dependency analysis</h3>
+              <div id="token-strip" class="token-strip"></div>
+              <div class="result-grid">
+                <div class="table-wrap">
+                  <table class="token-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th><th>Token</th><th>Lemma</th><th>POS</th>
+                        <th>Morphology</th><th>Head</th><th>Dep. rel.</th>
+                      </tr>
+                    </thead>
+                    <tbody id="token-body"></tbody>
+                  </table>
+                </div>
+                <div id="agreement-card" class="agreement-card"></div>
+              </div>
+              <h3>Selected output</h3>
+              <div class="table-wrap">
+                <table class="output-table">
+                  <thead id="output-head"></thead>
+                  <tbody id="output-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside>
+          <section class="card variables-card">
+            <div class="section-heading compact">
+              <span class="step">2</span>
+              <div>
+                <h2>Variables and what they mean</h2>
+                <p>Select the fields to include in the output.</p>
+              </div>
+            </div>
+            <div class="selection-actions">
+              <button id="select-all" class="text-button">✓ Select all</button>
+              <button id="clear-all" class="text-button">× Clear all</button>
+            </div>
+            <div id="variable-list" class="variable-list"></div>
+            <p class="aside-note">Only selected variables appear in the output and CSV.</p>
+          </section>
+
+          <section id="statistics" class="card statistics-card hidden">
+            <h2>Corpus statistics</h2>
+            <div id="stats-grid" class="stats-grid"></div>
+          </section>
+        </aside>
+      </section>
+
+      <section id="documentation" class="info-section">
+        <h2>How it works</h2>
+        <div class="info-grid">
+          <article>
+            <span>1</span>
+            <h3>Add English text</h3>
+            <p>Paste one or more sentences, or select a plain-text corpus.</p>
+          </article>
+          <article>
+            <span>2</span>
+            <h3>Choose variables</h3>
+            <p>Keep only the linguistic fields relevant to your research.</p>
+          </article>
+          <article id="help">
+            <span>3</span>
+            <h3>Review and export</h3>
+            <p>Inspect token-level parsing and download the selected data as CSV.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="alert"></div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
