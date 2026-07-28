@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+    image: agree-in-diatopy:local
+    restart: always
+    init: true
+    environment:
+      AGREEINDIATOPY_QUIET: "1"
+    ports:
+      # Bind only to the host loopback interface.
+      - "127.0.0.1:${APP_PORT:-8083}:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

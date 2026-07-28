@@ -13,6 +13,20 @@ from spacy.tokens import Doc
 STANZA_PROCESSORS = "tokenize,pos,lemma,depparse"
 
 
+def _stanza_resources_dir() -> str | None:
+    """Return the configured model directory, if one was provided."""
+    return os.environ.get("STANZA_RESOURCES_DIR") or None
+
+
+def _allow_model_download() -> bool:
+    """Allow convenient first-run downloads outside immutable deployments."""
+    return os.environ.get("STANZA_ALLOW_DOWNLOAD", "1").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
 def _input_sentences(text: str) -> list[str]:
     """Split the corpus into parseable sentence strings."""
     return [
@@ -79,6 +93,8 @@ def _trusted_stanza_checkpoint_loading():
 @lru_cache(maxsize=1)
 def _load_stanza_pipeline():
     """Load the English pipeline once and reuse it across analyses."""
+    resources_dir = _stanza_resources_dir()
+    directory_options = {"dir": resources_dir} if resources_dir else {}
     with _trusted_stanza_checkpoint_loading():
         try:
             return spacy_stanza.load_pipeline(
@@ -87,14 +103,25 @@ def _load_stanza_pipeline():
                 download_method=None,
                 use_gpu=False,
                 verbose=False,
+                **directory_options,
             )
-        except FileNotFoundError:
-            # Preserve the original first-run behaviour when the language
-            # resources have not been installed yet.
+        except FileNotFoundError as error:
+            if not _allow_model_download():
+                location = resources_dir or "the default Stanza directory"
+                raise RuntimeError(
+                    "The English Stanza model is not installed in "
+                    f"{location}. Rebuild the container image to include it."
+                ) from error
+
+            # Preserve convenient first-run behaviour for local development.
+            download_options = (
+                {"model_dir": resources_dir} if resources_dir else {}
+            )
             stanza.download(
                 "en",
                 processors=STANZA_PROCESSORS,
                 verbose=False,
+                **download_options,
             )
             return spacy_stanza.load_pipeline(
                 "en",
@@ -102,7 +129,13 @@ def _load_stanza_pipeline():
                 download_method=None,
                 use_gpu=False,
                 verbose=False,
+                **directory_options,
             )
+
+
+def preload_stanza_pipeline() -> None:
+    """Initialize the pipeline so readiness implies that the model is usable."""
+    _load_stanza_pipeline()
 
 
 def spacy_stanza_parse(text: str, add_conll: bool = False) -> list[Doc]:

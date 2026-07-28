@@ -53,6 +53,29 @@ The API accepts `POST /api/analyze` with a JSON body such as:
 {"text": "My dear cat eats vegetables every day."}
 ```
 
+### Docker deployment
+
+The container image downloads the English Stanza resources while it is being
+built. The running container has model downloads disabled, so it can start and
+analyze text without Internet access:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+The service uses Docker's `restart: always` policy. It starts again
+automatically after a container failure, a Docker daemon restart, or a machine
+reboot.
+
+By default, the service is available only at `127.0.0.1:8083`. Set `APP_PORT`
+if that port is already in use:
+
+```bash
+APP_PORT=8090 docker compose up -d
+```
+
 ### Running the Analysis
 
 The main entry point for the application is `main.py`. Use the following options to specify input and output paths:

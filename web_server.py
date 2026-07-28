@@ -197,6 +197,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if os.environ.get("AGREEINDIATOPY_PRELOAD_MODEL", "0").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        from subject_verb_extractor.parse import preload_stanza_pipeline
+
+        print("Loading the bundled English language model...")
+        preload_stanza_pipeline()
+
     server = ThreadingHTTPServer((args.host, args.port), AgreeInDiatopyHandler)
     server.daemon_threads = True
     print(f"AgreeInDiatopy is running at http://{args.host}:{args.port}")

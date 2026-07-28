@@ -249,7 +249,7 @@ async function analyze() {
   $("#status-message").textContent =
     "The first analysis may take a moment while the language model loads.";
   try {
-    const response = await fetch("/api/analyze", {
+    const response = await fetch("api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
