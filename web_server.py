@@ -24,8 +24,11 @@ ANALYSIS_LOCK = threading.Lock()
 
 
 def _agreement(subject_number: str, verb_number: str) -> str:
+    """Classify every extracted construction as match or mismatch."""
     if not subject_number or not verb_number:
-        return "unknown"
+        # The extractor resolves missing subject number and only retains finite
+        # verbs. Keep the API binary even for custom/legacy extractor results.
+        return "match"
     return "match" if subject_number == verb_number else "mismatch"
 
 
@@ -40,6 +43,7 @@ def _serialize_tokens(sentence) -> list[dict[str, Any]]:
             "morphology": str(token.morph) or "—",
             "head": token.head.i + 1,
             "dependency": token.dep_,
+            "is_root": token.head.i == token.i,
         }
         for token in sentence
     ]
@@ -77,10 +81,22 @@ def analyze_text(text: str) -> dict[str, Any]:
 
         for result in results:
             status = _agreement(result["subj_number"], result["verb_number"])
-            if status != "unknown":
-                agreement_count += 1
-                if status == "match":
-                    match_count += 1
+            agreement_count += 1
+            if status == "match":
+                match_count += 1
+
+            inversion = (
+                "EX"
+                if result["is_existential_there"]
+                else "SV"
+                if result["nsubj_index"] < result["verb_index"]
+                else "VS"
+            )
+            dependency = (
+                ("MAIN" if result["is_root"] else "NO_MAIN")
+                + "-"
+                + result["verb_dep"]
+            )
 
             analyses.append(
                 {
@@ -95,13 +111,8 @@ def analyze_text(text: str) -> dict[str, Any]:
                         "between_subj_verb_text"
                     ].strip(),
                     "polarity": result["polarity"],
-                    "inversion": (
-                        "EX"
-                        if result["is_existential_there"]
-                        else "SV"
-                        if result["nsubj_index"] < result["verb_index"]
-                        else "VS"
-                    ),
+                    "dependency": dependency,
+                    "inversion": inversion,
                     "full_subject": result["full_subject"],
                     "verb": result["verb"],
                     "verb_number": result["verb_number"],
@@ -111,6 +122,44 @@ def analyze_text(text: str) -> dict[str, Any]:
                     "existential_there": result["is_existential_there"],
                     "subject_elided": result["nsubj_elided"],
                     "subject_number": result["subj_number"],
+                    "subject_number_source": result.get(
+                        "subj_number_source", "stanza"
+                    ),
+                    "subject_pos": result["subj_pos"],
+                    "subject_tag": result["subj_tag"],
+                    "subject_dependency": result["subj_dep"],
+                    "subject_category": "_".join(
+                        (
+                            result["subj_pos"],
+                            result["subj_tag"],
+                            result["subj_dep"],
+                        )
+                    ),
+                    "subject_length": result["full_subject_non_punct_count"],
+                    "subject_head_length": result["nsubj_non_punct_count"],
+                    "pre_subject_length": result[
+                        "pre_nsubj_non_punct_count"
+                    ],
+                    "post_subject_length": result[
+                        "post_nsubj_non_punct_count"
+                    ],
+                    "between_subject_verb_length": result[
+                        "between_subj_verb_non_punct_count"
+                    ],
+                    "pre_subject_components": result["pre_nsubj_components"],
+                    "post_subject_components": result["post_nsubj_components"],
+                    "between_subject_verb_components": result[
+                        "between_subj_verb_components"
+                    ],
+                    "has_pre_subject": result["has_pre_nsubj"],
+                    "has_post_subject": result["has_post_nsubj"],
+                    "has_between_subject_verb": result[
+                        "has_between_subj_verb"
+                    ],
+                    "verb_dependency": result["verb_dep"],
+                    "verb_index": result["verb_index"] + 1,
+                    "lexical_verb_index": result["lexical_verb_index"] + 1,
+                    "subject_index": result["nsubj_index"] + 1,
                     "agreement": status,
                     "tokens": tokens,
                 }

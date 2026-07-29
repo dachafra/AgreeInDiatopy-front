@@ -137,28 +137,71 @@
                 <span id="agreement-badge" class="agreement-badge"></span>
               </div>
               <p id="selected-sentence" class="selected-sentence"></p>
-              <h3>Dependency analysis</h3>
-              <div id="token-strip" class="token-strip"></div>
-              <div class="result-grid">
+
+              <div class="result-tabs" role="tablist" aria-label="Result view">
+                <button
+                  class="result-tab active"
+                  data-result-tab="overview"
+                  role="tab"
+                  aria-controls="overview-panel"
+                  aria-selected="true"
+                >
+                  Overview
+                </button>
+                <button
+                  class="result-tab"
+                  data-result-tab="dependency"
+                  role="tab"
+                  aria-controls="dependency-panel"
+                  aria-selected="false"
+                >
+                  Dependency tree
+                </button>
+              </div>
+
+              <div id="overview-panel" class="result-panel" role="tabpanel">
+                <h3>Dependency analysis</h3>
+                <div id="token-strip" class="token-strip"></div>
+                <div class="result-grid">
+                  <div class="table-wrap">
+                    <table class="token-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th><th>Token</th><th>Lemma</th><th>POS</th>
+                          <th>Morphology</th><th>Head</th><th>Dep. rel.</th>
+                        </tr>
+                      </thead>
+                      <tbody id="token-body"></tbody>
+                    </table>
+                  </div>
+                  <div id="agreement-card" class="agreement-card"></div>
+                </div>
+
+                <h3>Selected output</h3>
                 <div class="table-wrap">
-                  <table class="token-table">
-                    <thead>
-                      <tr>
-                        <th>ID</th><th>Token</th><th>Lemma</th><th>POS</th>
-                        <th>Morphology</th><th>Head</th><th>Dep. rel.</th>
-                      </tr>
-                    </thead>
-                    <tbody id="token-body"></tbody>
+                  <table class="output-table">
+                    <thead id="output-head"></thead>
+                    <tbody id="output-body"></tbody>
                   </table>
                 </div>
-                <div id="agreement-card" class="agreement-card"></div>
               </div>
-              <h3>Selected output</h3>
-              <div class="table-wrap">
-                <table class="output-table">
-                  <thead id="output-head"></thead>
-                  <tbody id="output-body"></tbody>
-                </table>
+
+              <div
+                id="dependency-panel"
+                class="result-panel hidden"
+                role="tabpanel"
+              >
+                <div class="tree-heading">
+                  <div>
+                    <h3>Stanza dependency parse</h3>
+                    <p>Arrows point from each syntactic head to its dependent.</p>
+                  </div>
+                  <div class="tree-legend" aria-label="Dependency tree legend">
+                    <span><i class="legend-root"></i> Root</span>
+                    <span><i class="legend-subject"></i> Subject</span>
+                  </div>
+                </div>
+                <div id="dependency-tree" class="dependency-tree"></div>
               </div>
             </div>
           </section>
@@ -184,6 +227,14 @@
           <section id="statistics" class="card statistics-card hidden">
             <h2>Corpus statistics</h2>
             <div id="stats-grid" class="stats-grid"></div>
+            <div id="category-examples" class="category-examples hidden">
+              <div class="category-heading">
+                <h3 id="category-title"></h3>
+                <button id="close-category" class="icon-button" aria-label="Close examples">×</button>
+              </div>
+              <p id="category-summary"></p>
+              <div id="category-list" class="category-list"></div>
+            </div>
           </section>
         </aside>
       </section>

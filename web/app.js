@@ -1,23 +1,53 @@
 const VARIABLES = [
   ["full_sentence", "Full sentence", "The complete sentence as provided."],
   ["clause", "Clause", "The clause containing the main verb."],
-  ["subject", "Subject (nsubj)", "The grammatical subject head."],
-  ["pre_subject", "Pre-subject span", "Words before the subject head."],
-  ["post_subject", "Post-subject span", "Words after the subject head."],
-  ["between_subject_verb", "Between subject and verb", "Words between subject and verb."],
+  ["dependency", "Dependency", "Main/non-main status and the verb dependency."],
   ["polarity", "Polarity", "Positive, negative, or neutral."],
   ["inversion", "Inversion", "Subject–verb order: SV, VS, or EX."],
-  ["full_subject", "Full subject", "The complete subject phrase."],
-  ["verb", "Verb", "The finite verb phrase."],
+  ["verb", "Verb form", "The complete finite verb phrase."],
   ["verb_number", "Verb number", "Singular or plural verb number."],
   ["verb_person", "Verb person", "Grammatical person of the verb."],
-  ["verb_tense", "Verb tense", "Tense of the verb."],
+  ["verb_tense", "Verb tense", "Tense of the finite verb."],
+  ["verb_dependency", "Verb dependency", "The dependency relation of the verb."],
+  ["verb_index", "Finite verb index", "One-based position of the finite verb."],
+  ["lexical_verb_index", "Lexical verb index", "One-based position of the lexical verb."],
+  ["subject", "Subject (nsubj)", "The grammatical subject head."],
+  ["full_subject", "Full subject", "The complete subject phrase."],
+  ["subject_number", "Subject number", "Singular or plural subject number."],
+  ["subject_number_source", "Subject number source", "How subject number was obtained."],
+  ["subject_category", "Subject category", "POS, tag, and dependency combined."],
+  ["subject_pos", "Subject POS", "Universal part of speech of the subject."],
+  ["subject_tag", "Subject tag", "Language-specific POS tag of the subject."],
+  ["subject_dependency", "Subject dependency", "Dependency relation of the subject."],
+  ["subject_index", "Subject index", "One-based position of the subject head."],
+  ["subject_length", "Subject length", "Non-punctuation tokens in the full subject."],
+  ["subject_head_length", "Subject head length", "Non-punctuation tokens in the subject head."],
+  ["subject_elided", "Subject elided", "Whether the subject is inherited or elided."],
+  ["pre_subject", "Pre-subject span", "Words before the subject head."],
+  ["pre_subject_length", "Pre-subject length", "Non-punctuation tokens before the subject head."],
+  ["pre_subject_components", "Pre-subject components", "Constituent details before the subject head."],
+  ["has_pre_subject", "Has pre-subject", "Whether a pre-subject span is present."],
+  ["post_subject", "Post-subject span", "Words after the subject head."],
+  ["post_subject_length", "Post-subject length", "Non-punctuation tokens after the subject head."],
+  ["post_subject_components", "Post-subject components", "Constituent details after the subject head."],
+  ["has_post_subject", "Has post-subject", "Whether a post-subject span is present."],
+  ["between_subject_verb", "Between subject and verb", "Words between subject and verb."],
+  ["between_subject_verb_length", "Between span length", "Non-punctuation tokens between subject and verb."],
+  ["between_subject_verb_components", "Between span components", "Constituent details between subject and verb."],
+  ["has_between_subject_verb", "Has between span", "Whether material occurs between subject and verb."],
   ["is_root", "Is root/main", "Whether the verb is the sentence root."],
   ["existential_there", "Existential there", "Whether the clause uses existential there."],
-  ["subject_elided", "Subject elided", "Whether the subject is elided."],
+  ["agreement", "Agreement result", "Binary match or mismatch classification."],
 ];
 
-const state = { mode: "text", fileText: "", fileName: "", data: null };
+const state = {
+  mode: "text",
+  fileText: "",
+  fileName: "",
+  data: null,
+  selectedIndex: 0,
+  resultTab: "overview",
+};
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -94,6 +124,7 @@ function clearAll() {
   state.data = null;
   $("#results").classList.add("hidden");
   $("#statistics").classList.add("hidden");
+  $("#category-examples").classList.add("hidden");
   $("#status-message").textContent = "Choose one input mode and start the analysis.";
 }
 
@@ -116,22 +147,39 @@ function escapeHtml(value) {
 
 function displayValue(value) {
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "—";
+    return value
+      .map((item) => {
+        if (item && typeof item === "object") {
+          const category = [item.cat, item.tag, item.dep].filter(Boolean).join("_");
+          return `${item.form || "—"}${category ? ` [${category}]` : ""}${item.length != null ? ` (${item.length})` : ""}`;
+        }
+        return String(item);
+      })
+      .join("; ");
+  }
+  if (value && typeof value === "object") return JSON.stringify(value);
   return value === "" || value == null ? "—" : String(value);
 }
 
 function renderStatistics(stats) {
   const items = [
-    ["Sentences in corpus", stats.sentences, ""],
-    ["Tokens in corpus", stats.tokens.toLocaleString(), ""],
-    ["Agreements evaluated", stats.evaluated, ""],
-    ["Matches", stats.matches, "good"],
-    ["Mismatches", stats.mismatches, "bad"],
-    ["Supported language", stats.language, ""],
+    ["Sentences in corpus", stats.sentences, "", ""],
+    ["Tokens in corpus", stats.tokens.toLocaleString(), "", ""],
+    ["Agreements evaluated", stats.evaluated, "", ""],
+    ["Matches", stats.matches, "good", "match"],
+    ["Mismatches", stats.mismatches, "bad", "mismatch"],
+    ["Supported language", stats.language, "", ""],
   ];
   $("#stats-grid").innerHTML = items
     .map(
-      ([label, value, tone]) =>
-        `<div class="stat ${tone}"><small>${label}</small><strong>${value}</strong></div>`
+      ([label, value, tone, category]) =>
+        category
+          ? `<button class="stat ${tone} interactive" data-category="${category}" type="button">
+              <small>${label}</small><strong>${value}</strong><span>View examples →</span>
+            </button>`
+          : `<div class="stat ${tone}"><small>${label}</small><strong>${value}</strong></div>`
     )
     .join("");
   $("#statistics").classList.remove("hidden");
@@ -140,6 +188,8 @@ function renderStatistics(stats) {
 function renderSelectedResult(index) {
   const result = state.data.analyses[index];
   if (!result) return;
+  state.selectedIndex = index;
+  $("#result-select").value = String(index);
   $("#selected-sentence").textContent = result.full_sentence;
   const badge = $("#agreement-badge");
   badge.className = `agreement-badge ${result.agreement}`;
@@ -166,10 +216,13 @@ function renderSelectedResult(index) {
     )
     .join("");
 
+  const inferredNote =
+    result.subject_number_source === "stanza"
+      ? ""
+      : ` Subject number was inferred via ${result.subject_number_source}.`;
   const statusText = {
-    match: ["✓", "Match", `The ${result.subject_number.toLowerCase()} subject “${result.subject}” agrees with “${result.verb}”.`],
-    mismatch: ["×", "Mismatch", `The subject “${result.subject}” and “${result.verb}” have different number values.`],
-    unknown: ["?", "Not evaluated", "The parser did not provide enough number information to compare agreement."],
+    match: ["✓", "Match", `The ${result.subject_number.toLowerCase()} subject “${result.subject}” agrees with “${result.verb}”.${inferredNote}`],
+    mismatch: ["×", "Mismatch", `The ${result.subject_number.toLowerCase()} subject “${result.subject}” and “${result.verb}” have different number values.${inferredNote}`],
   }[result.agreement];
   const agreementCard = $("#agreement-card");
   agreementCard.className = `agreement-card ${result.agreement}`;
@@ -178,6 +231,108 @@ function renderSelectedResult(index) {
     <span class="status-icon">${statusText[0]}</span>
     <h4>${statusText[1]}</h4>
     <p>${escapeHtml(statusText[2])}</p>`;
+
+  renderDependencyTree(result.tokens);
+}
+
+function setResultTab(tab) {
+  state.resultTab = tab;
+  $$(".result-tab").forEach((button) => {
+    const active = button.dataset.resultTab === tab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  $("#overview-panel").classList.toggle("hidden", tab !== "overview");
+  $("#dependency-panel").classList.toggle("hidden", tab !== "dependency");
+  if (tab === "dependency" && state.data?.analyses[state.selectedIndex]) {
+    renderDependencyTree(state.data.analyses[state.selectedIndex].tokens);
+  }
+}
+
+function renderDependencyTree(tokens) {
+  const container = $("#dependency-tree");
+  if (!tokens.length) {
+    container.innerHTML = '<p class="tree-empty">No dependency parse is available.</p>';
+    return;
+  }
+
+  const step = 96;
+  const padding = 58;
+  const width = Math.max(container.clientWidth || 0, padding * 2 + step * (tokens.length - 1));
+  const maxSpan = Math.max(
+    1,
+    ...tokens.map((token) => Math.abs(token.id - token.head))
+  );
+  const baseline = Math.min(390, 105 + maxSpan * 25);
+  const height = baseline + 78;
+  const x = (id) => padding + (id - 1) * step;
+  const edges = tokens
+    .map((token) => {
+      const dependentX = x(token.id);
+      if (token.is_root || token.head === token.id) {
+        return `
+          <path class="dep-edge root-edge" d="M ${dependentX} 18 L ${dependentX} ${baseline - 10}" marker-end="url(#arrow-root)" />
+          <text class="dep-label root-label" x="${dependentX + 7}" y="25">root</text>`;
+      }
+      const headX = x(token.head);
+      const span = Math.abs(token.id - token.head);
+      const arcHeight = Math.min(baseline - 30, 34 + span * 24);
+      const top = baseline - arcHeight;
+      const middle = (headX + dependentX) / 2;
+      const subjectClass = token.dependency.startsWith("nsubj") ? " subject-edge" : "";
+      return `
+        <path class="dep-edge${subjectClass}" d="M ${headX} ${baseline - 10} C ${headX} ${top}, ${dependentX} ${top}, ${dependentX} ${baseline - 10}" marker-end="url(#arrow${subjectClass ? "-subject" : ""})" />
+        <text class="dep-label${subjectClass}" x="${middle}" y="${top - 5}">${escapeHtml(token.dependency)}</text>`;
+    })
+    .join("");
+  const nodes = tokens
+    .map(
+      (token) => `
+        <g class="dep-token" transform="translate(${x(token.id)}, ${baseline})">
+          <circle r="4"></circle>
+          <text class="dep-word" text-anchor="middle" y="25">${escapeHtml(token.text)}</text>
+          <text class="dep-pos" text-anchor="middle" y="43">${escapeHtml(token.pos)}</text>
+          <text class="dep-id" text-anchor="middle" y="58">${token.id}</text>
+        </g>`
+    )
+    .join("");
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Dependency tree for the selected sentence">
+      <defs>
+        <marker id="arrow" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z"></path></marker>
+        <marker id="arrow-subject" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z"></path></marker>
+        <marker id="arrow-root" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z"></path></marker>
+      </defs>
+      ${edges}
+      ${nodes}
+    </svg>`;
+}
+
+function showCategoryExamples(category) {
+  if (!state.data) return;
+  const examples = state.data.analyses
+    .map((analysis, index) => ({ analysis, index }))
+    .filter(({ analysis }) => analysis.agreement === category);
+  const label = category === "match" ? "Matches" : "Mismatches";
+  $("#category-title").textContent = label;
+  $("#category-summary").textContent =
+    `${examples.length} construction${examples.length === 1 ? "" : "s"} in this category.`;
+  $("#category-list").innerHTML = examples.length
+    ? examples
+        .map(
+          ({ analysis, index }) => `
+            <button class="category-example" type="button" data-result-index="${index}">
+              <span>${index + 1}</span>
+              <span>
+                <strong>${escapeHtml(analysis.full_sentence)}</strong>
+                <small>${escapeHtml(analysis.subject)} · ${escapeHtml(analysis.verb)}</small>
+              </span>
+            </button>`
+        )
+        .join("")
+    : '<p class="category-empty">There are no examples in this category.</p>';
+  $("#category-examples").classList.remove("hidden");
 }
 
 function renderOutputTable() {
@@ -205,6 +360,8 @@ function renderOutputTable() {
 
 function renderResults(data) {
   state.data = data;
+  state.selectedIndex = 0;
+  $("#category-examples").classList.add("hidden");
   $("#results").classList.remove("hidden");
   renderStatistics(data.statistics);
   const empty = data.analyses.length === 0;
@@ -223,6 +380,7 @@ function renderResults(data) {
       .join("");
     renderSelectedResult(0);
     renderOutputTable();
+    setResultTab("overview");
   }
   $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -339,6 +497,23 @@ function bindEvents() {
   $("#variable-list").addEventListener("change", renderOutputTable);
   $("#result-select").addEventListener("change", (event) =>
     renderSelectedResult(Number(event.target.value))
+  );
+  $$(".result-tab").forEach((tab) =>
+    tab.addEventListener("click", () => setResultTab(tab.dataset.resultTab))
+  );
+  $("#stats-grid").addEventListener("click", (event) => {
+    const stat = event.target.closest("[data-category]");
+    if (stat) showCategoryExamples(stat.dataset.category);
+  });
+  $("#category-list").addEventListener("click", (event) => {
+    const example = event.target.closest("[data-result-index]");
+    if (!example) return;
+    renderSelectedResult(Number(example.dataset.resultIndex));
+    setResultTab("overview");
+    $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("#close-category").addEventListener("click", () =>
+    $("#category-examples").classList.add("hidden")
   );
   $("#download-button").addEventListener("click", downloadCsv);
 }

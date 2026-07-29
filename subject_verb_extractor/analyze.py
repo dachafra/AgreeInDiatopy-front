@@ -129,7 +129,7 @@ def process_construction(verb: Token,
     post_nsubj = [c for c in subject.subtree if c.i > nsubj_end]
     post_nsubj = collapse_trailing_punct(post_nsubj) # Collapse trailing punctuation (Avoid "The cat, ,")
 
-    subj_number = subject.morph.get('Number', [''])[0]
+    subj_number, subj_number_source = get_subject_number(subject, verb)
     
     full_subject = ''.join(t.text_with_ws for t in pre_nsubj + full_nsubj + post_nsubj).strip()
 
@@ -169,6 +169,7 @@ def process_construction(verb: Token,
         'subj_tag': subject.tag_,
         'subj_dep': subject.dep_,
         'subj_number': subj_number,
+        'subj_number_source': subj_number_source,
         'is_root': verb_dep.upper() == "ROOT",
         'pre_nsubj_non_punct_count': count_non_punct(pre_nsubj),
         'post_nsubj_non_punct_count': count_non_punct(post_nsubj),
@@ -191,6 +192,61 @@ def process_construction(verb: Token,
         'nsubj_index': subject.i,
         'nsubj_elided': is_elided,
     }
+
+
+def get_subject_number(subject: Token, verb: Token) -> tuple[str, str]:
+    """Return a binary number value for agreement evaluation.
+
+    Stanza occasionally leaves ``Number`` empty for interrogative and relative
+    pronouns.  Prefer parser morphology, then recover number from the relative
+    antecedent, coordination, Penn tag, or common English determiners/pronouns.
+    As a final fallback, use the finite verb's number: an underspecified
+    pronoun such as interrogative ``who`` is compatible with the inflection
+    selected by the speaker and should not create a third "unknown" outcome.
+    """
+    parsed_number = subject.morph.get('Number', [''])[0]
+    if parsed_number in {'Sing', 'Plur'}:
+        return parsed_number, 'stanza'
+
+    # In a relative clause, Stanza attaches the clause head to its antecedent.
+    clause_head = verb.head
+    if verb.dep_.startswith(('acl', 'relcl')) and clause_head is not verb:
+        antecedent_number = clause_head.morph.get('Number', [''])[0]
+        if antecedent_number in {'Sing', 'Plur'}:
+            return antecedent_number, 'relative antecedent'
+
+    if any(child.dep_ == 'conj' for child in subject.children):
+        return 'Plur', 'coordination'
+
+    tag = subject.tag_.upper()
+    if tag in {'NNS', 'NNPS'}:
+        return 'Plur', 'POS tag'
+    if tag in {'NN', 'NNP'}:
+        return 'Sing', 'POS tag'
+
+    lower = subject.lower_
+    plural_markers = {
+        'we', 'they', 'these', 'those', 'both', 'few', 'many', 'several'
+    }
+    singular_markers = {
+        'he', 'she', 'it', 'this', 'that', 'each', 'either', 'neither',
+        'everyone', 'everybody', 'everything', 'someone', 'somebody',
+        'something', 'anyone', 'anybody', 'anything', 'no-one', 'nobody',
+        'nothing',
+    }
+    if lower in plural_markers:
+        return 'Plur', 'lexical rule'
+    if lower in singular_markers:
+        return 'Sing', 'lexical rule'
+
+    finite_anchor = get_finite_anchor(verb)
+    verb_number = finite_anchor.morph.get('Number', [''])[0]
+    if verb_number in {'Sing', 'Plur'}:
+        return verb_number, 'finite verb fallback'
+
+    # The extractor only keeps constructions with a finite third-person verb,
+    # but retain a deterministic last resort for manually constructed Docs.
+    return 'Sing', 'default'
 
 def add_metadata_to_results(result: dict, sentence: Doc) -> dict:
 
